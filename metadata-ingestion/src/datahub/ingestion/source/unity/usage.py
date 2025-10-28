@@ -3,14 +3,27 @@ import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Set, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    TypeVar,
+)
 
-import pyspark
 from databricks.sdk.service.sql import QueryStatementType
 
 from datahub.emitter.mcp import MetadataChangeProposalWrapper
 from datahub.ingestion.api.source_helpers import auto_empty_dataset_usage_statistics
 from datahub.ingestion.api.workunit import MetadataWorkUnit
+from datahub.ingestion.source.data_lake_common.pyspark_utils import (
+    is_pyspark_available,
+    pyspark,
+)
 from datahub.ingestion.source.unity.config import (
     UnityCatalogSourceConfig,
     UsageDataSource,
@@ -60,10 +73,12 @@ class UnityCatalogUsageExtractor:
 
     @property
     def spark_sql_parser(self):
-        """Lazily initializes the Spark SQL parser."""
+        """Lazily initializes the Spark SQL parser. Returns None if PySpark is not available."""
+        if not is_pyspark_available():
+            return None
         if self._spark_sql_parser is None:
-            spark_context = pyspark.SparkContext.getOrCreate()
-            spark_session = pyspark.sql.SparkSession(spark_context)
+            spark_context = pyspark.SparkContext.getOrCreate()  # type: ignore
+            spark_session = pyspark.sql.SparkSession(spark_context)  # type: ignore
             self._spark_sql_parser = (
                 spark_session._jsparkSession.sessionState().sqlParser()
             )
@@ -274,6 +289,9 @@ class UnityCatalogUsageExtractor:
         """Parse query source tables via Spark SQL plan. This is a fallback option."""
         # Would be more effective if we upgrade pyspark
         # Does not work with CTEs or non-SELECT statements
+        if self.spark_sql_parser is None:
+            logger.debug("Spark SQL parser not available (PySpark not installed)")
+            return None
         try:
             plan = json.loads(self.spark_sql_parser.parsePlan(query).toJSON())
             tables = [self._parse_plan_item(item) for item in plan]

@@ -143,7 +143,7 @@ ProfilerTypeMapping.BINARY_TYPE_NAMES.append("LargeBinary")
 # they can be `deepcopy`'d without issue. The SQLAlchemy engine and connection
 # objects, however, cannot be copied. Despite the fact that the SqlAlchemyDatasource
 # class accepts an `engine` argument (which can actually be an Engine or Connection
-# object), we cannot use it because of the config loading system. As such, we instead
+# object), we Cannot use it because of the config loading system. As such, we instead
 # pass a "dummy" config into the DatasourceConfig, but then dynamically add the
 # engine parameter when the SqlAlchemyDatasource is actually set up, and then remove
 # it from the cached config object to avoid those same copying mechanisms.

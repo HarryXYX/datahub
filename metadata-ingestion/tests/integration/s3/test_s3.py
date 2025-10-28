@@ -16,6 +16,9 @@ from datahub.ingestion.source.aws.s3_boto_utils import (
     list_folders_path,
     list_objects_recursive_path,
 )
+from datahub.ingestion.source.data_lake_common.pyspark_utils import (
+    is_profiling_enabled,
+)
 from datahub.ingestion.source.s3.source import S3Source
 from datahub.testing import mce_helpers
 
@@ -276,6 +279,13 @@ def test_data_lake_gcs_ingest(
 def test_data_lake_local_ingest(
     pytestconfig, touch_local_files, source_file_tuple, tmp_path, mock_time
 ):
+    # Skip test if profiling dependencies are not available since this test enables profiling
+    # which requires both PySpark and PyDeequ
+    if not is_profiling_enabled():
+        pytest.skip(
+            "Profiling dependencies (PySpark and PyDeequ) not available - skipping local ingestion test with profiling"
+        )
+
     source_dir, source_file = source_file_tuple
     test_resources_dir = pytestconfig.rootpath / "tests/integration/s3/"
     f = open(os.path.join(source_dir, source_file))
@@ -293,6 +303,7 @@ def test_data_lake_local_ingest(
             )
         )
 
+    # Enable profiling for local tests to validate profiling functionality
     source["config"]["profiling"]["enabled"] = True
     source["config"].pop("aws_config")
     source["config"].pop("use_s3_bucket_tags", None)

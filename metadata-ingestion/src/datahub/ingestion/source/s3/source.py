@@ -11,10 +11,6 @@ from pathlib import PurePath
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import smart_open.compression as so_compression
-from pyspark.conf import SparkConf
-from pyspark.sql import SparkSession
-from pyspark.sql.dataframe import DataFrame
-from pyspark.sql.utils import AnalysisException
 from smart_open import open as smart_open
 
 from datahub.emitter.mce_builder import (
@@ -54,6 +50,12 @@ from datahub.ingestion.source.data_lake_common.object_store import (
     create_object_store_adapter,
 )
 from datahub.ingestion.source.data_lake_common.path_spec import FolderTraversalMethod
+from datahub.ingestion.source.data_lake_common.pyspark_utils import (
+    DataFrame,
+    SparkConf,
+    SparkSession,
+    require_pyspark,
+)
 from datahub.ingestion.source.s3.config import DataLakeSourceConfig, PathSpec
 from datahub.ingestion.source.s3.report import DataLakeSourceReport
 from datahub.ingestion.source.schema_inference import avro, csv_tsv, json, parquet
@@ -188,7 +190,7 @@ class TableData:
 
 @platform_name("S3 / Local Files", id="s3")
 @config_class(DataLakeSourceConfig)
-@support_status(SupportStatus.CERTIFIED)
+@support_status(SupportStatus.INCUBATING)
 @capability(
     SourceCapability.CONTAINERS,
     "Enabled by default",
@@ -285,6 +287,8 @@ class S3Source(StatefulIngestionSourceBase):
             self.init_spark()
 
     def init_spark(self):
+        require_pyspark("S3 profiling")
+
         os.environ.setdefault("SPARK_VERSION", "3.5")
         spark_version = os.environ["SPARK_VERSION"]
 
@@ -292,7 +296,7 @@ class S3Source(StatefulIngestionSourceBase):
         # Deequ fails if Spark is not available which is not needed for non profiling use cases
         import pydeequ
 
-        conf = SparkConf()
+        conf = SparkConf()  # type: ignore[misc,arg-type]
         conf.set(
             "spark.jars.packages",
             ",".join(
@@ -374,7 +378,9 @@ class S3Source(StatefulIngestionSourceBase):
 
         return cls(config, ctx)
 
-    def read_file_spark(self, file: str, ext: str) -> Optional[DataFrame]:
+    def read_file_spark(self, file: str, ext: str) -> Optional[DataFrame]:  # type: ignore[valid-type]
+        require_pyspark("S3 file profiling")
+
         logger.debug(f"Opening file {file} for profiling in spark")
         if "s3://" in file:
             # replace s3:// with s3a://, and make sure standalone bucket names always end with a slash.
@@ -409,7 +415,9 @@ class S3Source(StatefulIngestionSourceBase):
         elif ext.endswith(".avro"):
             try:
                 df = self.spark.read.format("avro").load(file)
-            except AnalysisException as e:
+            except Exception as e:
+                # Catch both AnalysisException and any other exceptions
+                # (AnalysisException may be None if PySpark isn't imported, but we shouldn't reach here in that case)
                 self.report.report_warning(
                     file,
                     f"Avro file reading failed with exception. The error was: {e}",

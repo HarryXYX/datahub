@@ -1,44 +1,42 @@
 import dataclasses
+import logging
 from typing import Any, List, Optional
 
-from pandas import DataFrame
-from pydeequ.analyzers import (
-    AnalysisRunBuilder,
+from datahub.emitter.mce_builder import get_sys_time
+from datahub.ingestion.source.data_lake_common.pyspark_utils import (
     AnalysisRunner,
     AnalyzerContext,
     ApproxCountDistinct,
     ApproxQuantile,
     ApproxQuantiles,
-    Histogram,
-    Maximum,
-    Mean,
-    Minimum,
-    StandardDeviation,
-)
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, isnan, when
-from pyspark.sql.types import (
-    DataType as SparkDataType,
     DateType,
     DecimalType,
     DoubleType,
     FloatType,
+    Histogram,
     IntegerType,
     LongType,
+    Maximum,
+    Mean,
+    Minimum,
     NullType,
     ShortType,
+    SparkDataType,
+    StandardDeviation,
     StringType,
     TimestampType,
+    col,
+    count,
+    isnan,
+    when,
 )
-
-from datahub.emitter.mce_builder import get_sys_time
 from datahub.ingestion.source.profiling.common import (
     Cardinality,
     convert_to_cardinality,
 )
 from datahub.ingestion.source.s3.datalake_profiler_config import DataLakeProfilerConfig
 from datahub.ingestion.source.s3.report import DataLakeSourceReport
-from datahub.metadata.schema_classes import (
+from datahub.metadata.schema_classes import (  # type: ignore[misc,union-attr,attr-defined]
     DatasetFieldProfileClass,
     DatasetProfileClass,
     HistogramClass,
@@ -46,6 +44,8 @@ from datahub.metadata.schema_classes import (
     ValueFrequencyClass,
 )
 from datahub.telemetry import stats, telemetry
+
+logger = logging.getLogger(__name__)
 
 NUM_SAMPLE_ROWS = 20
 QUANTILES = [0.05, 0.25, 0.5, 0.75, 0.95]
@@ -73,9 +73,9 @@ class _SingleColumnSpec:
 
 
 class _SingleTableProfiler:
-    spark: SparkSession
-    dataframe: DataFrame
-    analyzer: AnalysisRunBuilder
+    spark: Any  # SparkSession type
+    dataframe: Any  # DataFrame type
+    analyzer: Any  # AnalysisRunBuilder type
     column_specs: List[_SingleColumnSpec]
     row_count: int
     profiling_config: DataLakeProfilerConfig
@@ -87,51 +87,51 @@ class _SingleTableProfiler:
 
     def __init__(
         self,
-        dataframe: DataFrame,
-        spark: SparkSession,
+        dataframe: Any,  # DataFrame
+        spark: Any,  # SparkSession
         profiling_config: DataLakeProfilerConfig,
         report: DataLakeSourceReport,
         file_path: str,
     ):
         self.spark = spark
         self.dataframe = dataframe
-        self.analyzer = AnalysisRunner(spark).onData(dataframe)
+        self.analyzer = AnalysisRunner(spark).onData(dataframe)  # type: ignore[misc,union-attr,attr-defined]
         self.column_specs = []
-        self.row_count = dataframe.count()
+        self.row_count = dataframe.count()  # type: ignore[misc,union-attr,attr-defined]
         self.profiling_config = profiling_config
         self.file_path = file_path
-        self.columns_to_profile = []
+        self.columns_to_profile = []  # type: ignore[misc,union-attr,attr-defined]
         self.ignored_columns = []
         self.profile = DatasetProfileClass(timestampMillis=get_sys_time())
         self.report = report
 
         self.profile.rowCount = self.row_count
-        self.profile.columnCount = len(dataframe.columns)
+        self.profile.columnCount = len(dataframe.columns)  # type: ignore[misc,union-attr,attr-defined]
 
-        column_types = {x.name: x.dataType for x in dataframe.schema.fields}
+        column_types = {x.name: x.dataType for x in dataframe.schema.fields}  # type: ignore[misc,union-attr,attr-defined]
 
         if self.profiling_config.profile_table_level_only:
             return
 
         # get column distinct counts
-        for column in dataframe.columns:
+        for column in dataframe.columns:  # type: ignore[misc,union-attr,attr-defined]
             if not self.profiling_config._allow_deny_patterns.allowed(column):
                 self.ignored_columns.append(column)
                 continue
 
-            self.columns_to_profile.append(column)
+            self.columns_to_profile.append(column)  # type: ignore[misc,union-attr,attr-defined]
             # Normal CountDistinct is ridiculously slow
-            self.analyzer.addAnalyzer(ApproxCountDistinct(column))
+            self.analyzer.addAnalyzer(ApproxCountDistinct(column))  # type: ignore[misc,union-attr,attr-defined]
 
         if self.profiling_config.max_number_of_fields_to_profile is not None:
             if (
-                len(self.columns_to_profile)
+                len(self.columns_to_profile)  # type: ignore[misc,union-attr,attr-defined]
                 > self.profiling_config.max_number_of_fields_to_profile
             ):
-                columns_being_dropped = self.columns_to_profile[
+                columns_being_dropped = self.columns_to_profile[  # type: ignore[misc,union-attr,attr-defined]
                     self.profiling_config.max_number_of_fields_to_profile :
                 ]
-                self.columns_to_profile = self.columns_to_profile[
+                self.columns_to_profile = self.columns_to_profile[  # type: ignore[misc,union-attr,attr-defined]
                     : self.profiling_config.max_number_of_fields_to_profile
                 ]
 
@@ -139,8 +139,8 @@ class _SingleTableProfiler:
                     f"The max_number_of_fields_to_profile={self.profiling_config.max_number_of_fields_to_profile} reached. Profile of columns {self.file_path}({', '.join(sorted(columns_being_dropped))})"
                 )
 
-        analysis_result = self.analyzer.run()
-        analysis_metrics = AnalyzerContext.successMetricsAsJson(
+        analysis_result = self.analyzer.run()  # type: ignore[misc,union-attr,attr-defined]
+        analysis_metrics = AnalyzerContext.successMetricsAsJson(  # type: ignore[misc,union-attr,attr-defined]
             self.spark, analysis_result
         )
 
@@ -152,38 +152,39 @@ class _SingleTableProfiler:
         }
 
         select_numeric_null_counts = [
-            count(
-                when(
-                    isnan(c) | col(c).isNull(),
+            count(  # type: ignore[misc,arg-type]
+                when(  # type: ignore[misc,arg-type]
+                    isnan(c) | col(c).isNull(),  # type: ignore[misc,arg-type]
                     c,
                 )
             ).alias(c)
-            for c in self.columns_to_profile
+            for c in self.columns_to_profile  # type: ignore[misc,union-attr,attr-defined]
             if column_types[column] in [DoubleType, FloatType]
         ]
 
         # PySpark doesn't support isnan() on non-float/double columns
         select_nonnumeric_null_counts = [
-            count(
-                when(
-                    col(c).isNull(),
+            count(  # type: ignore[misc,arg-type]
+                when(  # type: ignore[misc,arg-type]
+                    col(c).isNull(),  # type: ignore[misc,arg-type]
                     c,
                 )
             ).alias(c)
-            for c in self.columns_to_profile
+            for c in self.columns_to_profile  # type: ignore[misc,union-attr,attr-defined]
             if column_types[column] not in [DoubleType, FloatType]
         ]
 
-        null_counts = dataframe.select(
+        null_counts = dataframe.select(  # type: ignore[misc,union-attr,attr-defined]
             select_numeric_null_counts + select_nonnumeric_null_counts
         )
-        column_null_counts = null_counts.toPandas().T[0].to_dict()
+        column_null_counts = null_counts.toPandas().T[0].to_dict()  # type: ignore[misc,union-attr,attr-defined]
         column_null_fractions = {
             c: column_null_counts[c] / self.row_count if self.row_count != 0 else 0
-            for c in self.columns_to_profile
+            for c in self.columns_to_profile  # type: ignore[misc,union-attr,attr-defined]
         }
         column_nonnull_counts = {
-            c: self.row_count - column_null_counts[c] for c in self.columns_to_profile
+            c: self.row_count - column_null_counts[c]
+            for c in self.columns_to_profile  # type: ignore[misc,union-attr,attr-defined]
         }
 
         column_unique_proportions = {
@@ -192,19 +193,19 @@ class _SingleTableProfiler:
                 if column_nonnull_counts[c] > 0
                 else 0
             )
-            for c in self.columns_to_profile
+            for c in self.columns_to_profile  # type: ignore[misc,union-attr,attr-defined]
         }
 
         if self.profiling_config.include_field_sample_values:
             # take sample and convert to Pandas DataFrame
             if self.row_count < NUM_SAMPLE_ROWS:
                 # if row count is less than number to sample, just take all rows
-                rdd_sample = dataframe.rdd.take(self.row_count)
+                rdd_sample = dataframe.rdd.take(self.row_count)  # type: ignore[misc,union-attr,attr-defined]
             else:
-                rdd_sample = dataframe.rdd.takeSample(False, NUM_SAMPLE_ROWS, seed=0)
+                rdd_sample = dataframe.rdd.takeSample(False, NUM_SAMPLE_ROWS, seed=0)  # type: ignore[misc,union-attr,attr-defined]
 
         # init column specs with profiles
-        for column in self.columns_to_profile:
+        for column in self.columns_to_profile:  # type: ignore[misc,union-attr,attr-defined]
             column_profile = DatasetFieldProfileClass(fieldPath=column)
 
             column_spec = _SingleColumnSpec(column, column_profile)
@@ -228,35 +229,35 @@ class _SingleTableProfiler:
 
     def prep_min_value(self, column: str) -> None:
         if self.profiling_config.include_field_min_value:
-            self.analyzer.addAnalyzer(Minimum(column))
+            self.analyzer.addAnalyzer(Minimum(column))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_max_value(self, column: str) -> None:
         if self.profiling_config.include_field_max_value:
-            self.analyzer.addAnalyzer(Maximum(column))
+            self.analyzer.addAnalyzer(Maximum(column))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_mean_value(self, column: str) -> None:
         if self.profiling_config.include_field_mean_value:
-            self.analyzer.addAnalyzer(Mean(column))
+            self.analyzer.addAnalyzer(Mean(column))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_median_value(self, column: str) -> None:
         if self.profiling_config.include_field_median_value:
-            self.analyzer.addAnalyzer(ApproxQuantile(column, 0.5))
+            self.analyzer.addAnalyzer(ApproxQuantile(column, 0.5))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_stdev_value(self, column: str) -> None:
         if self.profiling_config.include_field_stddev_value:
-            self.analyzer.addAnalyzer(StandardDeviation(column))
+            self.analyzer.addAnalyzer(StandardDeviation(column))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_quantiles(self, column: str) -> None:
         if self.profiling_config.include_field_quantiles:
-            self.analyzer.addAnalyzer(ApproxQuantiles(column, QUANTILES))
+            self.analyzer.addAnalyzer(ApproxQuantiles(column, QUANTILES))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_distinct_value_frequencies(self, column: str) -> None:
         if self.profiling_config.include_field_distinct_value_frequencies:
-            self.analyzer.addAnalyzer(Histogram(column))
+            self.analyzer.addAnalyzer(Histogram(column))  # type: ignore[misc,union-attr,attr-defined]
 
     def prep_field_histogram(self, column: str) -> None:
         if self.profiling_config.include_field_histogram:
-            self.analyzer.addAnalyzer(Histogram(column, maxDetailBins=MAX_HIST_BINS))
+            self.analyzer.addAnalyzer(Histogram(column, maxDetailBins=MAX_HIST_BINS))  # type: ignore[misc,union-attr,attr-defined]
 
     def prepare_table_profiles(self) -> None:
         row_count = self.row_count
@@ -292,8 +293,8 @@ class _SingleTableProfiler:
                     column_profile.uniqueProportion = unique_count / non_null_count
 
             if isinstance(
-                type_,
-                (
+                type_,  # type: ignore[misc,arg-type]
+                (  # type: ignore[misc,arg-type]
                     DecimalType,
                     DoubleType,
                     FloatType,
@@ -327,8 +328,8 @@ class _SingleTableProfiler:
                     self.prep_field_histogram(column)
                 else:  # unknown cardinality - skip
                     pass
-
-            elif isinstance(type_, StringType):
+            # type: ignore[misc,arg-type]
+            elif isinstance(type_, StringType):  # type: ignore[misc,arg-type]
                 if cardinality in [
                     Cardinality.ONE,
                     Cardinality.TWO,
@@ -339,8 +340,8 @@ class _SingleTableProfiler:
                     self.prep_distinct_value_frequencies(
                         column,
                     )
-
-            elif isinstance(type_, (DateType, TimestampType)):
+            # type: ignore[misc,arg-type]
+            elif isinstance(type_, (DateType, TimestampType)):  # type: ignore[misc,arg-type]
                 self.prep_min_value(column)
                 self.prep_max_value(column)
 
@@ -358,11 +359,11 @@ class _SingleTableProfiler:
 
     def extract_table_profiles(
         self,
-        analysis_metrics: DataFrame,
+        analysis_metrics: Any,  # DataFrame
     ) -> None:
         self.profile.fieldProfiles = []
 
-        analysis_metrics = analysis_metrics.toPandas()
+        analysis_metrics = analysis_metrics.toPandas()  # type: ignore[misc,union-attr,attr-defined]
         # DataFrame with following columns:
         #   entity: "Column" for column profile, "Table" for table profile
         #   instance: name of column being profiled. "*" for table profiles

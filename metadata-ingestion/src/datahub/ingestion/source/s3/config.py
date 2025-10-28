@@ -160,6 +160,45 @@ class DataLakeSourceConfig(
         if not platform:
             raise ValueError("platform must not be empty")
 
+        # Note: S3-specific option validation is done in validate_s3_options_with_platform root validator
+        # because field validators in Pydantic v2 don't reliably have access to other field values
+
+        return platform
+
+    @pydantic.root_validator(skip_on_failure=True)
+    def ensure_profiling_pattern_is_passed_to_profiling(
+        cls, values: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        profiling: Optional[DataLakeProfilerConfig] = values.get("profiling")
+        if profiling is not None and profiling.enabled:
+            profiling._allow_deny_patterns = values["profile_patterns"]
+        return values
+
+    @pydantic.root_validator(skip_on_failure=True)
+    def validate_profiling_dependencies(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate that PySpark is available when profiling is enabled."""
+        profiling: Optional[DataLakeProfilerConfig] = values.get("profiling")
+        if profiling is not None and profiling.enabled:
+            from datahub.ingestion.source.data_lake_common.pyspark_utils import (
+                is_profiling_enabled as check_profiling_deps,
+            )
+
+            if not check_profiling_deps():
+                raise ValueError(
+                    "Data lake profiling is enabled but required dependencies are not installed. "
+                    "PySpark and PyDeequ are required for S3 profiling. "
+                    "Please install with: pip install 'acryl-datahub[s3,data-lake-profiling]' "
+                    "See docs/PYSPARK.md for more information."
+                )
+        return values
+
+    @pydantic.root_validator(skip_on_failure=True)
+    def validate_s3_options_with_platform(
+        cls, values: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Validate that S3-specific options are only used with S3 platform."""
+        platform = values.get("platform")
+
         if platform != "s3" and values.get("use_s3_bucket_tags"):
             raise ValueError(
                 "Cannot grab s3 bucket tags when platform is not s3. Remove the flag or ingest from s3."
@@ -173,13 +212,4 @@ class DataLakeSourceConfig(
                 "Cannot grab s3 object content type when platform is not s3. Remove the flag or ingest from s3."
             )
 
-        return platform
-
-    @pydantic.root_validator(skip_on_failure=True)
-    def ensure_profiling_pattern_is_passed_to_profiling(
-        cls, values: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        profiling: Optional[DataLakeProfilerConfig] = values.get("profiling")
-        if profiling is not None and profiling.enabled:
-            profiling._allow_deny_patterns = values["profile_patterns"]
         return values
