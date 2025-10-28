@@ -1,15 +1,10 @@
 # Optional PySpark Support for Data Lake Sources
 
-DataHub's S3, GCS, ABS, and Unity Catalog sources now support optional PySpark installation. This allows users to install only the dependencies they need, reducing installation size and complexity when data lake profiling is not required.
+DataHub's S3, GCS, ABS, and Unity Catalog sources now support optional PySpark installation through `-slim` variants. This allows users to choose lightweight installations when data lake profiling is not needed.
 
 ## Overview
 
-Previously, PySpark was a required dependency for S3, GCS, ABS, and Unity Catalog sources, even when profiling was disabled. This created unnecessary installation overhead (~500MB) and potential dependency conflicts for users who only needed metadata extraction without profiling.
-
-**Now you can choose:**
-
-- **Lightweight installation**: Metadata extraction without PySpark (~500MB smaller)
-- **Full installation**: Metadata extraction + profiling with PySpark and PyDeequ
+S3, GCS, and ABS sources include PySpark by default for backward compatibility. For users who only need metadata extraction without profiling, `-slim` variants provide a ~500MB smaller installation.
 
 ## PySpark Version
 
@@ -19,39 +14,48 @@ Previously, PySpark was a required dependency for S3, GCS, ABS, and Unity Catalo
 
 ## Installation Options
 
-### Option 1: Modular Installation (Recommended)
-
-Install base source support, then add profiling if needed:
+### Standard Installation (includes PySpark) - Default
 
 ```bash
-# S3 without profiling
-pip install 'acryl-datahub[s3]'
-
-# S3 with profiling
-pip install 'acryl-datahub[s3,data-lake-profiling]'
-
-# Multiple sources with profiling
-pip install 'acryl-datahub[s3,gcs,abs,data-lake-profiling]'
+pip install 'acryl-datahub[s3]'         # S3 with PySpark/profiling
+pip install 'acryl-datahub[gcs]'        # GCS with PySpark/profiling
+pip install 'acryl-datahub[abs]'        # ABS with PySpark/profiling
+pip install 'acryl-datahub[s3,gcs,abs]' # All three with PySpark/profiling
 ```
 
-### Option 2: Convenience Variants
+### Lightweight Installation (without PySpark) - New!
 
-All-in-one extras that include profiling:
+For installations where you don't need profiling capabilities and want to save ~500MB:
 
 ```bash
-# S3 with profiling (convenience)
-pip install 'acryl-datahub[s3-profiling]'
-
-# GCS with profiling
-pip install 'acryl-datahub[gcs-profiling]'
-
-# ABS with profiling
-pip install 'acryl-datahub[abs-profiling]'
+pip install 'acryl-datahub[s3-slim]'         # S3 without PySpark
+pip install 'acryl-datahub[gcs-slim]'        # GCS without PySpark
+pip install 'acryl-datahub[abs-slim]'        # ABS without PySpark
+pip install 'acryl-datahub[s3-slim,gcs-slim,abs-slim]' # All three without PySpark
 ```
+
+The `data-lake-profiling` dependencies (included in standard `s3/gcs/abs` by default):
+
+- `pyspark~=3.5.6`
+- `pydeequ>=1.1.0`
+- Profiling dependencies (cachetools)
+
+> **Note:** In a future major release (e.g., DataHub 2.0), the `-slim` variants will become the default, and PySpark will be optional. This current approach provides backward compatibility while giving users time to adapt.
 
 ### What's Included
 
-**Base extras (`s3`, `gcs`, `abs`):**
+**Standard extras (`s3`, `gcs`, `abs`):**
+
+- ✅ Metadata extraction (schemas, tables, file listing)
+- ✅ Data format detection (Parquet, Avro, CSV, JSON, etc.)
+- ✅ Schema inference from files
+- ✅ Table and column-level metadata
+- ✅ Tags and properties extraction
+- ✅ Data profiling (min/max, nulls, distinct counts)
+- ✅ Data quality checks (PyDeequ-based)
+- Includes: PySpark 3.5.6 + PyDeequ
+
+**Slim variants (`s3-slim`, `gcs-slim`, `abs-slim`):**
 
 - ✅ Metadata extraction (schemas, tables, file listing)
 - ✅ Data format detection (Parquet, Avro, CSV, JSON, etc.)
@@ -60,15 +64,7 @@ pip install 'acryl-datahub[abs-profiling]'
 - ✅ Tags and properties extraction
 - ❌ Data profiling (min/max, nulls, distinct counts)
 - ❌ Data quality checks (PyDeequ-based)
-
-**With `data-lake-profiling` extra:**
-
-- ✅ All base functionality
-- ✅ Data profiling with PyDeequ
-- ✅ Statistical analysis (min, max, mean, stddev)
-- ✅ Null count and distinct count analysis
-- ✅ Histogram generation
-- Includes: `pyspark~=3.5.6`, `pydeequ>=1.1.0`
+- No PySpark dependencies (~500MB smaller)
 
 **Unity Catalog behavior:**
 
@@ -77,20 +73,20 @@ pip install 'acryl-datahub[abs-profiling]'
 
 ## Feature Comparison
 
-| Feature                 | Without PySpark    | With PySpark                 |
-| ----------------------- | ------------------ | ---------------------------- |
-| **S3/GCS/ABS metadata** | ✅ Full support    | ✅ Full support              |
-| **Schema inference**    | ✅ Basic inference | ✅ Enhanced inference        |
-| **Data profiling**      | ❌ Not available   | ✅ Full profiling            |
-| **Unity Catalog**       | ✅ sqlglot parser  | ✅ PySpark parser            |
-| **Installation size**   | ~200MB             | ~700MB                       |
-| **Install time**        | Fast               | Slower (PySpark compilation) |
+| Feature                 | Slim variants (`-slim`) | Standard (`s3`, `gcs`, `abs`) |
+| ----------------------- | ----------------------- | ----------------------------- |
+| **S3/GCS/ABS metadata** | ✅ Full support         | ✅ Full support               |
+| **Schema inference**    | ✅ Basic inference      | ✅ Enhanced inference         |
+| **Data profiling**      | ❌ Not available        | ✅ Full profiling             |
+| **Unity Catalog**       | ✅ sqlglot parser       | ✅ PySpark parser             |
+| **Installation size**   | ~200MB                  | ~700MB                        |
+| **Install time**        | Fast                    | Slower (PySpark compilation)  |
 
 ## Configuration
 
-### Enabling Profiling
+### With Standard Installation (PySpark included)
 
-When profiling is enabled in your recipe, DataHub validates that PySpark is installed:
+When you install `acryl-datahub[s3]`, profiling works out of the box:
 
 ```yaml
 source:
@@ -99,22 +95,13 @@ source:
     path_specs:
       - include: s3://my-bucket/data/**/*.parquet
     profiling:
-      enabled: true # Requires data-lake-profiling extra
+      enabled: true # Works seamlessly with standard installation
       profile_table_level_only: false
 ```
 
-**If PySpark is not installed**, you'll see a clear error message:
+### With Slim Installation (no PySpark)
 
-```
-ValueError: Data lake profiling is enabled but required dependencies are not installed.
-PySpark and PyDeequ are required for S3 profiling.
-Please install with: pip install 'acryl-datahub[s3,data-lake-profiling]'
-See docs/PYSPARK.md for more information.
-```
-
-### Disabling Profiling
-
-To use S3/GCS/ABS without PySpark, simply disable profiling:
+When you install `acryl-datahub[s3-slim]`, disable profiling in your config:
 
 ```yaml
 source:
@@ -123,53 +110,24 @@ source:
     path_specs:
       - include: s3://my-bucket/data/**/*.parquet
     profiling:
-      enabled: false # No PySpark required
+      enabled: false # Required for -slim variants
 ```
 
-### Adding PySpark Support to New Sources
+**If you enable profiling with -slim installation**, you'll see a runtime warning and profiling will be skipped.
 
-If you're developing a new data lake source, follow this pattern:
+## Developer Guide
 
-```python
-from datahub.ingestion.source.data_lake_common import pyspark_utils
-
-# At module level - detect availability
-_PYSPARK_AVAILABLE = pyspark_utils.is_pyspark_available()
-
-# In your source class
-if _PYSPARK_AVAILABLE and self.config.profiling.enabled:
-    # Import PySpark modules conditionally
-    from pyspark.sql import SparkSession
-    # ... use PySpark for profiling
-else:
-    logger.info("Profiling disabled or PySpark not available")
-```
+If you're developing a new data lake source that uses PySpark or other optional heavy dependencies, see the [Adding a Metadata Ingestion Source](../metadata-ingestion/adding-source.md#31-using-optional-dependencies-eg-pyspark) guide for the recommended implementation pattern.
 
 ## Troubleshooting
 
-### Error: "PySpark is not installed"
-
-**Problem:** You're trying to use profiling but PySpark is not installed.
-
-**Solution:**
-
-```bash
-pip install 'acryl-datahub[data-lake-profiling]'
-```
-
-Or use the convenience variant:
-
-```bash
-pip install 'acryl-datahub[s3-profiling]'
-```
-
 ### Warning: "Data lake profiling disabled: PySpark/PyDeequ not available"
 
-**Problem:** Profiling is enabled in config but PySpark is not installed.
+**Problem:** You installed a `-slim` variant but have profiling enabled in your config.
 
 **Solutions:**
 
-1. Install profiling dependencies: `pip install 'acryl-datahub[data-lake-profiling]'`
+1. Use standard installation (includes PySpark): `pip install 'acryl-datahub[s3]'`
 2. Disable profiling in your recipe: `profiling.enabled: false`
 
 ### Verifying Installation
@@ -186,65 +144,65 @@ python -c "import pyspark; print(pyspark.__version__)"
 
 Expected output:
 
-- With `data-lake-profiling`: Shows `pyspark 3.5.x`
-- Without `data-lake-profiling`: Import fails or package not found
+- Standard installation (`s3`, `gcs`, `abs`): Shows `pyspark 3.5.x`
+- Slim installation (`s3-slim`, `gcs-slim`, `abs-slim`): Import fails or package not found
 
 ## Migration Guide
 
 ### Upgrading from Previous Versions
 
-If you were using S3/GCS/ABS with profiling before this change:
-
-**Option 1: Keep existing behavior (with profiling)**
+**No action required!** This change is fully backward compatible:
 
 ```bash
-# Replace your old install command
-pip install 'acryl-datahub[s3]'
-
-# With new profiling-inclusive variant
-pip install 'acryl-datahub[s3-profiling]'
+# Existing installations continue to work exactly as before
+pip install 'acryl-datahub[s3]'  # Still includes PySpark by default
+pip install 'acryl-datahub[gcs]'  # Still includes PySpark by default
+pip install 'acryl-datahub[abs]'  # Still includes PySpark by default
 ```
 
-**Option 2: Reduce footprint (without profiling)**
+**Optional: Reduce footprint for non-profiling use cases**
+
+If you don't need profiling, you can now opt into lighter installations:
 
 ```bash
-# Use base variant if profiling not needed
-pip install 'acryl-datahub[s3]'
-
-# Update config to disable profiling
-# profiling:
-#   enabled: false
+# Switch to slim variants to save ~500MB
+pip install 'acryl-datahub[s3-slim]'
+pip install 'acryl-datahub[gcs-slim]'
+pip install 'acryl-datahub[abs-slim]'
 ```
 
 ### No Breaking Changes
 
-This change is backward compatible:
+This implementation maintains full backward compatibility:
 
-- Existing installations with PySpark continue to work
-- Profiling behavior is unchanged when PySpark is installed
-- Only affects new installations where users can now choose to exclude PySpark
+- Standard `s3`, `gcs`, `abs` extras include PySpark (unchanged behavior)
+- All existing recipes and configs continue to work
+- New `-slim` variants available for users who want smaller installations
+- Future DataHub 2.0 may flip defaults, but provides migration path
 
-## DataHub Actions
+## Benefits for DataHub Actions
 
-[DataHub Actions](https://github.com/datahub-project/datahub/tree/master/datahub-actions) depends on `acryl-datahub` and benefits significantly from optional PySpark support:
+[DataHub Actions](https://github.com/datahub-project/datahub/tree/master/datahub-actions) depends on `acryl-datahub` and can benefit from `-slim` variants when profiling is not needed:
 
 ### Reduced Installation Size
 
-DataHub Actions typically doesn't need data lake profiling capabilities since it focuses on reacting to metadata events, not extracting metadata from data lakes. With optional PySpark:
+DataHub Actions typically doesn't need data lake profiling capabilities since it focuses on reacting to metadata events, not extracting metadata from data lakes. Use `-slim` variants to reduce footprint:
 
 ```bash
-# Before: Actions pulled in PySpark unnecessarily
+# If Actions needs S3 metadata access but not profiling
 pip install acryl-datahub-actions
-# Result: ~700MB installation
+pip install 'acryl-datahub[s3-slim]'
+# Result: ~500MB smaller than standard s3 extra
 
-# After: Actions installs without PySpark by default
+# If Actions needs full S3 with profiling
 pip install acryl-datahub-actions
-# Result: ~200MB installation (500MB saved)
+pip install 'acryl-datahub[s3]'
+# Result: Includes PySpark for profiling capabilities
 ```
 
 ### Faster Deployment
 
-Actions services can now deploy faster in containerized environments:
+Actions services using `-slim` variants deploy faster in containerized environments:
 
 - **Faster pip install**: No PySpark compilation required
 - **Smaller Docker images**: Reduced base image size
@@ -252,7 +210,7 @@ Actions services can now deploy faster in containerized environments:
 
 ### Fewer Dependency Conflicts
 
-Actions workflows often integrate with other tools (Slack, Teams, email services). Removing PySpark reduces:
+Actions workflows often integrate with other tools (Slack, Teams, email services). Using `-slim` variants reduces:
 
 - Python version constraint conflicts
 - Java/Spark runtime conflicts in restricted environments
@@ -260,12 +218,12 @@ Actions workflows often integrate with other tools (Slack, Teams, email services
 
 ### When Actions Needs Profiling
 
-If your Actions workflow needs to trigger data lake profiling jobs, you can still install the full stack:
+If your Actions workflow needs to trigger data lake profiling jobs, use the standard extras:
 
 ```bash
-# Actions with data lake profiling capability
+# Actions with data lake profiling capability (standard extras include PySpark)
 pip install 'acryl-datahub-actions'
-pip install 'acryl-datahub[s3,data-lake-profiling]'
+pip install 'acryl-datahub[s3]'  # Includes PySpark by default
 ```
 
 **Common Actions use cases that DON'T need PySpark:**
@@ -281,3 +239,12 @@ pip install 'acryl-datahub[s3,data-lake-profiling]'
 
 - Custom actions that programmatically trigger S3/GCS/ABS profiling
 - Actions that directly process data lake files (not typical)
+
+## Benefits Summary
+
+✅ **Backward compatible**: Standard extras unchanged, existing users unaffected
+✅ **Smaller installations**: Save ~500MB with `-slim` variants
+✅ **Faster setup**: No PySpark compilation with `-slim` variants
+✅ **Flexible deployment**: Choose based on profiling needs
+✅ **Clear migration path**: Future-proof for DataHub 2.0 transition
+✅ **Actions-friendly**: DataHub Actions benefits from reduced footprint with `-slim` variants

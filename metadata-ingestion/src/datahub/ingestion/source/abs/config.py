@@ -161,24 +161,6 @@ class DataLakeSourceConfig(
         return values
 
     @pydantic.root_validator(skip_on_failure=True)
-    def validate_profiling_dependencies(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate that PySpark is available when profiling is enabled."""
-        profiling: Optional[DataLakeProfilerConfig] = values.get("profiling")
-        if profiling is not None and profiling.enabled:
-            from datahub.ingestion.source.data_lake_common.pyspark_utils import (
-                is_profiling_enabled as check_profiling_deps,
-            )
-
-            if not check_profiling_deps():
-                raise ValueError(
-                    "Data lake profiling is enabled but required dependencies are not installed. "
-                    "PySpark and PyDeequ are required for ABS profiling. "
-                    "Please install with: pip install 'acryl-datahub[abs,data-lake-profiling]' "
-                    "See docs/PYSPARK.md for more information."
-                )
-        return values
-
-    @pydantic.root_validator(skip_on_failure=True)
     def validate_abs_options_with_platform(
         cls, values: Dict[str, Any]
     ) -> Dict[str, Any]:

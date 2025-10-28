@@ -558,19 +558,19 @@ plugins: Dict[str, Set[str]] = {
     | classification_lib
     | {"db-dtypes"}  # Pandas extension data types
     | cachetools_lib,
-    # S3/GCS/ABS extras now work without PySpark/profiling by default
-    # For modular approach: pip install 'acryl-datahub[s3,data-lake-profiling]'
-    # For convenience: pip install 'acryl-datahub[s3-profiling]'
-    "s3": {*s3_base},
-    "gcs": {*s3_base, "smart-open[gcs]>=5.2.1"},
-    "abs": {*abs_base},
-    # Modular profiling extra - works for all data lake sources (s3, gcs, abs)
-    # Usage: pip install 'acryl-datahub[s3,gcs,abs,data-lake-profiling]'
+    # S3/GCS/ABS include PySpark by default (backward compatible)
+    # Standard installation: pip install 'acryl-datahub[s3]' (with PySpark)
+    # Lightweight installation: pip install 'acryl-datahub[s3-slim]' (no PySpark)
+    "s3": {*s3_base, *data_lake_profiling},
+    "gcs": {*s3_base, *data_lake_profiling, "smart-open[gcs]>=5.2.1"},
+    "abs": {*abs_base, *data_lake_profiling},
+    # Lightweight variants without PySpark dependencies
+    # Usage: pip install 'acryl-datahub[s3-slim]' for PySpark-less installations
+    "s3-slim": {*s3_base},
+    "gcs-slim": {*s3_base, "smart-open[gcs]>=5.2.1"},
+    "abs-slim": {*abs_base},
+    # Standalone profiling extra (included in s3/gcs/abs by default)
     "data-lake-profiling": data_lake_profiling,
-    # Convenience all-in-one variants (equivalent to base + data-lake-profiling)
-    "s3-profiling": {*s3_base, *data_lake_profiling},
-    "gcs-profiling": {*s3_base, *data_lake_profiling, "smart-open[gcs]>=5.2.1"},
-    "abs-profiling": {*abs_base, *data_lake_profiling},
     "sagemaker": aws_common,
     "salesforce": {"simple-salesforce", *cachetools_lib},
     "snowflake": snowflake_common | sql_common | usage_common | sqlglot_lib,

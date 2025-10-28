@@ -60,11 +60,13 @@ class TestS3ConfigProfilingValidation:
         assert config is not None
         assert config.profiling.enabled is True
 
-    def test_config_with_profiling_when_pyspark_unavailable(self):
-        """Test that config validation fails when profiling enabled without PySpark."""
-        if is_profiling_enabled():
-            pytest.skip("PySpark is available, skipping test")
+    def test_config_with_profiling_accepts_without_pyspark(self):
+        """Test that config accepts profiling even without PySpark (backward compatibility).
 
+        Note: In the default s3/gcs/abs installation, PySpark is included.
+        When using s3-slim/gcs-slim/abs-slim, profiling will be disabled at runtime
+        with appropriate warnings, but config validation does not fail.
+        """
         config_dict: dict = {
             "path_specs": [
                 {
@@ -74,18 +76,11 @@ class TestS3ConfigProfilingValidation:
             "profiling": {"enabled": True},
         }
 
-        with pytest.raises(ValueError) as exc_info:
-            DataLakeSourceConfig.parse_obj(config_dict)
+        # Config validation should succeed - PySpark validation removed for backward compatibility
+        config = DataLakeSourceConfig.parse_obj(config_dict)
 
-        error_msg = str(exc_info.value)
-
-        # Verify error message contains all required information
-        assert "Data lake profiling is enabled" in error_msg
-        assert "PySpark" in error_msg
-        assert "PyDeequ" in error_msg
-        assert "data-lake-profiling" in error_msg
-        assert "s3,data-lake-profiling" in error_msg
-        assert "docs/PYSPARK.md" in error_msg
+        assert config is not None
+        assert config.profiling.enabled is True
 
     def test_config_platform_inference(self):
         """Test that platform is correctly inferred from path_specs."""
