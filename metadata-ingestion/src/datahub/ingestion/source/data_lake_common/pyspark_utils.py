@@ -80,6 +80,8 @@ pyspark: Optional[Any] = None  # type: ignore[no-redef]
 # PySpark classes - will be set to actual classes if available, None otherwise
 # Note: SparkSession, DataFrame, AnalysisRunBuilder, PandasDataFrame are defined in TYPE_CHECKING block
 # with proper types for mypy. At runtime, they start as None and get reassigned if imports succeed.
+SparkSession: Optional[Any] = None
+DataFrame: Optional[Any] = None
 SparkConf: Optional[Any] = None
 AnalysisException: Optional[Any] = None
 
@@ -103,6 +105,7 @@ isnan: Optional[Any] = None
 when: Optional[Any] = None
 
 # PyDeequ classes
+AnalysisRunBuilder: Optional[Any] = None
 AnalysisRunner: Optional[Any] = None
 AnalyzerContext: Optional[Any] = None
 ApproxCountDistinct: Optional[Any] = None
@@ -113,6 +116,9 @@ Maximum: Optional[Any] = None
 Mean: Optional[Any] = None
 Minimum: Optional[Any] = None
 StandardDeviation: Optional[Any] = None
+
+# Pandas
+PandasDataFrame: Optional[Any] = None
 
 try:
     import pyspark  # type: ignore[no-redef]
@@ -208,7 +214,7 @@ def require_pyspark(operation: str = "this operation") -> None:
     if not _PYSPARK_AVAILABLE:
         raise RuntimeError(
             f"PySpark is not installed, but is required for {operation}. "
-            "DataHub requires PySpark 4.0.0 or later for data lake profiling. "
+            "DataHub requires PySpark for data lake profiling. "
             "Please install with: pip install 'acryl-datahub[data-lake-profiling]' "
             "See docs/PYSPARK.md for more information."
         )
